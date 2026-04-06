@@ -87,9 +87,8 @@ function StatusDot({ status }: { status: string }) {
 
 interface AuthUser {
   id: number;
-  login: string;
+  username: string;
   display_name: string;
-  login_type: string;
 }
 
 interface IndexProps {
@@ -317,18 +316,18 @@ export default function Index({ user, onLogout }: IndexProps = {}) {
             <div className="p-4 animate-fade-in">
               <div className="flex flex-col items-center mb-4">
                 <div className="w-16 h-16 rounded-[20px] flex items-center justify-center mb-2 text-2xl font-bold glow-violet" style={{ background: 'linear-gradient(135deg, #9d6fff, #22d3ee)', color: 'white' }}>
-                  {(user?.display_name || user?.login || '?')[0].toUpperCase()}
+                  {(user?.display_name || user?.username || '?')[0].toUpperCase()}
                 </div>
-                <p className="font-bold text-base">{user?.display_name || user?.login || 'Пользователь'}</p>
-                <p className="text-xs text-muted-foreground">{user?.login}</p>
+                <p className="font-bold text-base">{user?.display_name || user?.username || 'Пользователь'}</p>
+                <p className="text-xs text-muted-foreground">@{user?.username}</p>
               </div>
               <div className="encrypt-badge rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
                 <Icon name="Shield" size={14} />
                 <span className="text-xs font-medium">E2E шифрование активно</span>
               </div>
               {[
-                { label: user?.login_type === 'phone' ? 'Телефон' : 'Email', value: user?.login || '—', icon: user?.login_type === 'phone' ? 'Smartphone' : 'Mail' },
-                { label: 'Имя в Nexus', value: user?.display_name || '—', icon: 'User' },
+                { label: 'Имя пользователя', value: '@' + (user?.username || '—'), icon: 'AtSign' },
+                { label: 'Отображаемое имя', value: user?.display_name || '—', icon: 'User' },
                 { label: 'Аккаунт создан', value: 'Сегодня', icon: 'Info' },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl mb-2" style={{ background: 'rgba(255,255,255,0.03)' }}>

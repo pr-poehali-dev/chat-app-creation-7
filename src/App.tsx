@@ -14,9 +14,8 @@ const AUTH_URL = 'https://functions.poehali.dev/fbaf0cb4-405e-438f-a810-cd1c0beb
 
 interface AuthUser {
   id: number;
-  login: string;
+  username: string;
   display_name: string;
-  login_type: string;
 }
 
 function AppInner() {

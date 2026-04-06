@@ -1,12 +1,10 @@
 """
-Авторизация пользователей Nexus Messenger.
-Поддерживает вход по email или номеру телефона с OTP-кодом.
-Действие передаётся через query param: ?action=send-otp|verify-otp|me|logout
+Авторизация Nexus Messenger — username + password.
+?action=register|login|me|logout
 """
 import json
 import os
-import random
-import string
+import hashlib
 import secrets
 import psycopg2
 from datetime import datetime, timedelta
@@ -16,14 +14,31 @@ SCHEMA = os.environ.get('MAIN_DB_SCHEMA', 't_p64880888_chat_app_creation_7')
 CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Auth-Token, X-Session-Token',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token',
 }
 
 def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'])
 
 def json_resp(data, status=200):
-    return {'statusCode': status, 'headers': {**CORS_HEADERS, 'Content-Type': 'application/json'}, 'body': json.dumps(data, ensure_ascii=False)}
+    return {
+        'statusCode': status,
+        'headers': {**CORS_HEADERS, 'Content-Type': 'application/json'},
+        'body': json.dumps(data, ensure_ascii=False)
+    }
+
+def hash_password(password: str) -> str:
+    salt = 'nexus_salt_2026'
+    return hashlib.sha256((salt + password).encode()).hexdigest()
+
+def create_session(cur, user_id: int) -> str:
+    token = secrets.token_hex(32)
+    expires_at = datetime.utcnow() + timedelta(days=30)
+    cur.execute(
+        f"INSERT INTO {SCHEMA}.sessions (user_id, token, expires_at) VALUES (%s, %s, %s)",
+        (user_id, token, expires_at)
+    )
+    return token
 
 def handler(event: dict, context) -> dict:
     if event.get('httpMethod') == 'OPTIONS':
@@ -35,87 +50,86 @@ def handler(event: dict, context) -> dict:
     if event.get('body'):
         body = json.loads(event['body'])
 
-    # ?action=send-otp — сгенерировать и сохранить OTP
-    if action == 'send-otp':
-        login = (body.get('login') or '').strip().lower()
-        login_type = body.get('login_type', 'email')
+    # ?action=register
+    if action == 'register':
+        username = (body.get('username') or '').strip().lower()
+        password = (body.get('password') or '').strip()
+        display_name = (body.get('display_name') or '').strip()
 
-        if not login:
-            return json_resp({'error': 'Укажите email или номер телефона'}, 400)
+        if not username:
+            return json_resp({'error': 'Введите имя пользователя'}, 400)
+        if len(username) < 3:
+            return json_resp({'error': 'Имя пользователя минимум 3 символа'}, 400)
+        if not username.replace('_', '').replace('.', '').isalnum():
+            return json_resp({'error': 'Только буквы, цифры, _ и .'}, 400)
+        if not password:
+            return json_resp({'error': 'Введите пароль'}, 400)
+        if len(password) < 6:
+            return json_resp({'error': 'Пароль минимум 6 символов'}, 400)
 
-        code = ''.join(random.choices(string.digits, k=6))
-        expires_at = datetime.utcnow() + timedelta(minutes=10)
+        name = display_name or username
+        pw_hash = hash_password(password)
 
         conn = get_conn()
         cur = conn.cursor()
+
+        cur.execute(f"SELECT id FROM {SCHEMA}.users WHERE username=%s", (username,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return json_resp({'error': 'Имя пользователя уже занято'}, 409)
+
         cur.execute(
-            f"UPDATE {SCHEMA}.otp_codes SET used=TRUE WHERE login=%s AND used=FALSE",
-            (login,)
+            f"INSERT INTO {SCHEMA}.users (login, login_type, username, display_name, password_hash) VALUES (%s, 'username', %s, %s, %s) RETURNING id",
+            (username, username, name, pw_hash)
         )
-        cur.execute(
-            f"INSERT INTO {SCHEMA}.otp_codes (login, code, expires_at) VALUES (%s, %s, %s)",
-            (login, code, expires_at)
-        )
+        user_id = cur.fetchone()[0]
+        token = create_session(cur, user_id)
         conn.commit()
         cur.close()
         conn.close()
 
-        # В демо-режиме возвращаем код напрямую
-        return json_resp({'success': True, 'demo_code': code, 'login_type': login_type})
+        return json_resp({
+            'success': True,
+            'token': token,
+            'user': {'id': user_id, 'username': username, 'display_name': name}
+        })
 
-    # ?action=verify-otp — проверить код и создать сессию
-    if action == 'verify-otp':
-        login = (body.get('login') or '').strip().lower()
-        code = (body.get('code') or '').strip()
-        login_type = body.get('login_type', 'email')
-        display_name = (body.get('display_name') or '').strip()
+    # ?action=login
+    if action == 'login':
+        username = (body.get('username') or '').strip().lower()
+        password = (body.get('password') or '').strip()
 
-        if not login or not code:
-            return json_resp({'error': 'Укажите логин и код'}, 400)
+        if not username or not password:
+            return json_resp({'error': 'Введите имя пользователя и пароль'}, 400)
 
+        pw_hash = hash_password(password)
         conn = get_conn()
         cur = conn.cursor()
 
         cur.execute(
-            f"SELECT id FROM {SCHEMA}.otp_codes WHERE login=%s AND code=%s AND used=FALSE AND expires_at > NOW() ORDER BY id DESC LIMIT 1",
-            (login, code)
+            f"SELECT id, display_name FROM {SCHEMA}.users WHERE username=%s AND password_hash=%s",
+            (username, pw_hash)
         )
         row = cur.fetchone()
         if not row:
             cur.close()
             conn.close()
-            return json_resp({'error': 'Неверный или истёкший код'}, 401)
+            return json_resp({'error': 'Неверное имя пользователя или пароль'}, 401)
 
-        otp_id = row[0]
-        cur.execute(f"UPDATE {SCHEMA}.otp_codes SET used=TRUE WHERE id=%s", (otp_id,))
-
-        cur.execute(f"SELECT id, display_name FROM {SCHEMA}.users WHERE login=%s", (login,))
-        user_row = cur.fetchone()
-
-        if user_row:
-            user_id = user_row[0]
-            name = user_row[1] or display_name or login
-        else:
-            name = display_name or login
-            cur.execute(
-                f"INSERT INTO {SCHEMA}.users (login, login_type, display_name) VALUES (%s, %s, %s) RETURNING id",
-                (login, login_type, name)
-            )
-            user_id = cur.fetchone()[0]
-
-        token = secrets.token_hex(32)
-        expires_at = datetime.utcnow() + timedelta(days=30)
-        cur.execute(
-            f"INSERT INTO {SCHEMA}.sessions (user_id, token, expires_at) VALUES (%s, %s, %s)",
-            (user_id, token, expires_at)
-        )
+        user_id, display_name = row
+        token = create_session(cur, user_id)
         conn.commit()
         cur.close()
         conn.close()
 
-        return json_resp({'success': True, 'token': token, 'user': {'id': user_id, 'login': login, 'display_name': name, 'login_type': login_type}})
+        return json_resp({
+            'success': True,
+            'token': token,
+            'user': {'id': user_id, 'username': username, 'display_name': display_name or username}
+        })
 
-    # ?action=me — получить пользователя по токену
+    # ?action=me
     if action == 'me':
         token = (body.get('token') or '').strip()
         if not token:
@@ -124,7 +138,7 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         cur = conn.cursor()
         cur.execute(
-            f"SELECT u.id, u.login, u.display_name, u.login_type FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id WHERE s.token=%s AND s.expires_at>NOW()",
+            f"SELECT u.id, u.username, u.display_name FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id WHERE s.token=%s AND s.expires_at>NOW()",
             (token,)
         )
         row = cur.fetchone()
@@ -134,7 +148,7 @@ def handler(event: dict, context) -> dict:
         if not row:
             return json_resp({'error': 'Сессия недействительна'}, 401)
 
-        return json_resp({'user': {'id': row[0], 'login': row[1], 'display_name': row[2], 'login_type': row[3]}})
+        return json_resp({'user': {'id': row[0], 'username': row[1], 'display_name': row[2] or row[1]}})
 
     # ?action=logout
     if action == 'logout':

@@ -1,21 +1,21 @@
 {
   "tests": [
     {
-      "name": "Send OTP - email",
+      "name": "Register - short username",
       "method": "POST",
-      "path": "/?action=send-otp",
-      "body": {"login": "test@nexus.app", "login_type": "email"},
-      "expectedStatus": 200,
-      "expectedBody": {"success": true},
+      "path": "/?action=register",
+      "body": {"username": "ab", "password": "123456"},
+      "expectedStatus": 400,
+      "expectedBody": {"error": "Имя пользователя минимум 3 символа"},
       "bodyMatcher": "partial"
     },
     {
-      "name": "Verify wrong OTP",
+      "name": "Login - wrong password",
       "method": "POST",
-      "path": "/?action=verify-otp",
-      "body": {"login": "test@nexus.app", "code": "000000", "login_type": "email"},
+      "path": "/?action=login",
+      "body": {"username": "nobody", "password": "wrongpass"},
       "expectedStatus": 401,
-      "expectedBody": {"error": "Неверный или истёкший код"},
+      "expectedBody": {"error": "Неверное имя пользователя или пароль"},
       "bodyMatcher": "partial"
     },
     {
