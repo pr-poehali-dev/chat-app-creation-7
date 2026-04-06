@@ -85,7 +85,19 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-export default function Index() {
+interface AuthUser {
+  id: number;
+  login: string;
+  display_name: string;
+  login_type: string;
+}
+
+interface IndexProps {
+  user?: AuthUser;
+  onLogout?: () => void;
+}
+
+export default function Index({ user, onLogout }: IndexProps = {}) {
   const [activeNav, setActiveNav] = useState('chats');
   const [activeTab, setActiveTab] = useState<Tab>('Чаты');
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
@@ -304,22 +316,20 @@ export default function Index() {
           {activeNav === 'profile' && (
             <div className="p-4 animate-fade-in">
               <div className="flex flex-col items-center mb-4">
-                <div className="story-ring mb-2">
-                  <div className="story-ring-inner">
-                    <img src={AVATAR_2} alt="me" className="w-16 h-16 rounded-[20px] object-cover" />
-                  </div>
+                <div className="w-16 h-16 rounded-[20px] flex items-center justify-center mb-2 text-2xl font-bold glow-violet" style={{ background: 'linear-gradient(135deg, #9d6fff, #22d3ee)', color: 'white' }}>
+                  {(user?.display_name || user?.login || '?')[0].toUpperCase()}
                 </div>
-                <p className="font-bold text-base">Александр Новиков</p>
-                <p className="text-xs text-muted-foreground">@alex_nexus</p>
+                <p className="font-bold text-base">{user?.display_name || user?.login || 'Пользователь'}</p>
+                <p className="text-xs text-muted-foreground">{user?.login}</p>
               </div>
               <div className="encrypt-badge rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
                 <Icon name="Shield" size={14} />
                 <span className="text-xs font-medium">E2E шифрование активно</span>
               </div>
               {[
-                { label: 'Номер телефона', value: '+7 (999) 123-45-67', icon: 'Phone' },
-                { label: 'Email', value: 'alex@nexus.app', icon: 'Mail' },
-                { label: 'О себе', value: 'Product Designer 🎨', icon: 'Info' },
+                { label: user?.login_type === 'phone' ? 'Телефон' : 'Email', value: user?.login || '—', icon: user?.login_type === 'phone' ? 'Smartphone' : 'Mail' },
+                { label: 'Имя в Nexus', value: user?.display_name || '—', icon: 'User' },
+                { label: 'Аккаунт создан', value: 'Сегодня', icon: 'Info' },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-xl mb-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
                   <Icon name={item.icon as IconName} size={14} className="text-muted-foreground" />
@@ -329,6 +339,16 @@ export default function Index() {
                   </div>
                 </div>
               ))}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl mt-3 transition-colors hover:bg-red-500/10"
+                  style={{ border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+                >
+                  <Icon name="LogOut" size={14} />
+                  <span className="text-sm">Выйти из аккаунта</span>
+                </button>
+              )}
             </div>
           )}
 

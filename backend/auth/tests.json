@@ -1,0 +1,31 @@
+{
+  "tests": [
+    {
+      "name": "Send OTP - email",
+      "method": "POST",
+      "path": "/?action=send-otp",
+      "body": {"login": "test@nexus.app", "login_type": "email"},
+      "expectedStatus": 200,
+      "expectedBody": {"success": true},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Verify wrong OTP",
+      "method": "POST",
+      "path": "/?action=verify-otp",
+      "body": {"login": "test@nexus.app", "code": "000000", "login_type": "email"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "Неверный или истёкший код"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Me - no token",
+      "method": "POST",
+      "path": "/?action=me",
+      "body": {},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "Нет токена"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
