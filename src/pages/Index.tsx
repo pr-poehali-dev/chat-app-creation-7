@@ -148,7 +148,7 @@ export default function Index({ user, onLogout }: IndexProps = {}) {
     <div className="flex h-screen w-screen overflow-hidden mesh-bg font-golos">
 
       {/* Sidebar Navigation */}
-      <aside className="flex flex-col items-center gap-2 py-6 px-2 w-16 border-r border-[rgba(157,111,255,0.15)]" style={{ background: 'var(--bg-card)' }}>
+      <aside className={`flex-col items-center gap-2 py-6 px-2 w-16 border-r border-[rgba(157,111,255,0.15)] flex-shrink-0 ${selectedChat ? 'hidden md:flex' : 'flex'}`} style={{ background: 'var(--bg-card)' }}>
         <div className="mb-4 animate-float">
           <div className="w-10 h-10 rounded-2xl glow-violet flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9d6fff, #22d3ee)' }}>
             <span className="text-white font-bold text-lg font-caveat">N</span>
@@ -175,7 +175,7 @@ export default function Index({ user, onLogout }: IndexProps = {}) {
       </aside>
 
       {/* Chat List Panel */}
-      <div className="w-72 flex flex-col border-r border-[rgba(157,111,255,0.1)]" style={{ background: 'var(--bg-panel)' }}>
+      <div className={`flex-col border-r border-[rgba(157,111,255,0.1)] flex-shrink-0 ${selectedChat ? 'hidden md:flex md:w-72' : 'flex w-full md:w-72'}`} style={{ background: 'var(--bg-panel)' }}>
 
         {/* Header */}
         <div className="p-4 pb-2">
@@ -384,11 +384,14 @@ export default function Index({ user, onLogout }: IndexProps = {}) {
       </div>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className={`flex-col overflow-hidden ${selectedChat ? 'flex flex-1' : 'hidden md:flex md:flex-1'}`}>
         {selectedChat && currentContact ? (
           <>
             {/* Chat Header */}
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-[rgba(157,111,255,0.1)]" style={{ background: 'rgba(14,14,26,0.8)', backdropFilter: 'blur(20px)' }}>
+            <div className="flex items-center gap-3 px-4 md:px-6 py-4 border-b border-[rgba(157,111,255,0.1)]" style={{ background: 'rgba(14,14,26,0.8)', backdropFilter: 'blur(20px)' }}>
+              <button className="md:hidden mr-1 text-muted-foreground hover:text-foreground transition-colors" onClick={() => setSelectedChat(null)}>
+                <Icon name="ArrowLeft" size={20} />
+              </button>
               <div className="relative">
                 <img src={currentContact.avatar} alt={currentContact.name} className="w-10 h-10 rounded-xl object-cover" />
                 <StatusDot status={currentContact.status} />
